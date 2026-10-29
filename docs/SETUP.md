@@ -47,9 +47,48 @@ Notes:
 - Sign-ups are turned off, so "Confirm sign up" isn't normally sent; it's styled anyway so nothing ever goes out with the default look.
 - A password reset signs the person in and opens their **Account** page, where they choose a new password.
 
-## 4. Email delivery
+## 4. Email delivery (Resend)
 
-Supabase's built-in email only delivers to members of your Supabase organisation and is limited to a few emails per hour. That's enough to test with your own address. Before inviting real clients, connect Resend (Phase 1 step 9): **Authentication → Emails → SMTP Settings**.
+Supabase's built-in email only delivers to members of your Supabase organisation and is limited to a few emails per hour. Resend sends both the sign-in emails and the portal's notification emails from `portal@teamsyncode.com`.
+
+**a. Verify the domain in Resend**
+
+1. Create a free account at [resend.com](https://resend.com) with `team.syncode@gmail.com`.
+2. **Domains → Add domain** → `teamsyncode.com`, region **Tokyo (ap-northeast-1)** (closest to Sri Lanka).
+3. Resend shows 3–4 DNS records. In Namecheap: **Domain List → teamsyncode.com → Manage → Advanced DNS → Add new record**, one per Resend record:
+
+   | Resend shows | Namecheap type | Namecheap "Host" |
+   |---|---|---|
+   | MX `send` → `feedback-smtp….amazonses.com`, priority 10 | **MX Record** (needs *Mail Settings* = **Custom MX**; if it currently shows *Email Forwarding* in use, check before switching, as that would stop the forwarding) | `send` |
+   | TXT `send` → `v=spf1 include:amazonses.com ~all` | **TXT Record** | `send` |
+   | TXT `resend._domainkey` → `p=MIGf…` | **TXT Record** | `resend._domainkey` |
+   | TXT `_dmarc` → `v=DMARC1; p=none;` (optional, recommended) | **TXT Record** | `_dmarc` |
+
+   Namecheap adds `.teamsyncode.com` itself, so type only the part shown in the Host column. Copy each value from Resend exactly. These records sit on the `send.` subdomain, so they don't affect the website or any existing email.
+4. Back in Resend, click **Verify DNS records**. It usually turns green within 15 minutes (it can take a few hours).
+
+**b. Notification emails (the portal)**
+
+1. Resend → **API Keys → Create API key**, name `syncode-portal`, permission **Sending access**, domain `teamsyncode.com`.
+2. Vercel → syncode-portal → Settings → Environment Variables → add `RESEND_API_KEY` with that key (Production and Preview). Also add it to `.env.local` for local testing. Never share or commit it.
+3. Push any commit (or wait for the next one) so Vercel picks it up.
+
+Until `RESEND_API_KEY` is set, notifications still appear in the portal's bell; only the emails are skipped.
+
+**c. Sign-in and invitation emails (Supabase)**
+
+Supabase → **Authentication → Emails → SMTP Settings → Enable custom SMTP**:
+
+| Field | Value |
+|---|---|
+| Sender email | `portal@teamsyncode.com` |
+| Sender name | `Team SYNCODE` |
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | a Resend API key (you can create a second key just for Supabase) |
+
+Then **Authentication → Rate Limits** → raise "emails sent per hour" (for example to 100).
 
 ## 5. Keys
 

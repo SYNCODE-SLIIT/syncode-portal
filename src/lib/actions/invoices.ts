@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireAdmin, requireClient } from "@/lib/auth";
 import { setFlash } from "@/lib/flash";
 import { SLIP_TYPES, MAX_SLIP_BYTES } from "@/lib/attachments";
-import { invoiceBalance } from "@/lib/domain";
+import { formatMoney, formatPortalDate, invoiceBalance } from "@/lib/domain";
+import { notify } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Invoice } from "@/lib/types/database";
@@ -92,11 +93,30 @@ export async function sendInvoiceAction(invoiceId: string): Promise<ActionResult
     .eq("id", invoiceId)
     .eq("status", "draft")
     .gt("total", 0)
-    .select("number, client_id")
-    .maybeSingle();
+    .select("number, client_id, total, currency, due_date")
+    .maybeSingle<Pick<Invoice, "number" | "client_id" | "total" | "currency" | "due_date">>();
   if (error || !data) return { ok: false, error: "Only a draft invoice with a total above 0 can be sent." };
 
   await logActivity(session.userId, "invoice", invoiceId, "invoice.sent", { number: data.number });
+  const amount = formatMoney(data.total, data.currency);
+  notify({
+    to: { clientContactsOf: data.client_id },
+    actorId: session.userId,
+    type: "invoice_sent",
+    title: `New invoice ${data.number}`,
+    body: `${amount} · due ${formatPortalDate(data.due_date)}`,
+    link: `/invoices/${invoiceId}`,
+    email: {
+      eyebrow: "New invoice",
+      subject: `Invoice ${data.number} from Team SYNCODE (${amount})`,
+      paragraphs: [
+        `Team SYNCODE has sent you invoice ${data.number} for ${amount}, due on ${formatPortalDate(data.due_date)}.`,
+        "You can view and download it in the portal. Once you've paid by bank transfer, upload the slip on the invoice page and we'll confirm it.",
+      ],
+      buttonLabel: "View invoice",
+      reason: "You're receiving this because you're a billing contact for your business.",
+    },
+  });
   refresh(invoiceId, data.client_id as string);
   return { ok: true, message: `Invoice ${data.number} sent. The client can see it now.` };
 }
@@ -202,9 +222,33 @@ export async function reviewPaymentAction(
     .update({ status: decision, reject_reason: rejectReason, reviewed_by: session.userId, reviewed_at: new Date().toISOString() })
     .eq("id", paymentId)
     .eq("status", "pending")
-    .select("invoice_id, client_id, amount")
+    .select("invoice_id, client_id, amount, submitted_by, invoices(number, currency)")
     .maybeSingle();
   if (error || !data) return { ok: false, error: "This payment has already been reviewed." };
+
+  const inv = data.invoices as unknown as { number: string; currency: Invoice["currency"] } | null;
+  const paidText = formatMoney(data.amount as number, inv?.currency ?? "LKR");
+  notify({
+    to: { profileIds: [data.submitted_by as string | null] },
+    actorId: session.userId,
+    type: decision === "approved" ? "payment_approved" : "payment_rejected",
+    title: decision === "approved" ? `Payment confirmed for ${inv?.number ?? "your invoice"}` : `Payment not accepted for ${inv?.number ?? "your invoice"}`,
+    body: decision === "approved" ? paidText : (rejectReason ?? undefined),
+    link: `/invoices/${data.invoice_id}`,
+    email: {
+      eyebrow: decision === "approved" ? "Payment confirmed" : "Payment not accepted",
+      subject:
+        decision === "approved"
+          ? `Payment received: ${inv?.number ?? "invoice"} (${paidText})`
+          : `Please check your payment for ${inv?.number ?? "your invoice"}`,
+      paragraphs:
+        decision === "approved"
+          ? [`Thank you! We've received your payment of ${paidText} for invoice ${inv?.number ?? ""}.`]
+          : [`We couldn't confirm your payment of ${paidText} for invoice ${inv?.number ?? ""}.`, `Reason: ${rejectReason}`, "Please check and upload the slip again, or contact us."],
+      buttonLabel: "View invoice",
+      reason: "You're receiving this because you sent this payment.",
+    },
+  });
 
   await logActivity(session.userId, "payment", paymentId, decision === "approved" ? "payment.approved" : "payment.rejected", {
     invoice_id: data.invoice_id,
@@ -240,9 +284,9 @@ export async function submitPaymentAction(
   const supabase = await createClient();
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("number, status, total, amount_paid")
+    .select("number, status, total, amount_paid, currency")
     .eq("id", invoiceId)
-    .maybeSingle<Pick<Invoice, "number" | "status" | "total" | "amount_paid">>();
+    .maybeSingle<Pick<Invoice, "number" | "status" | "total" | "amount_paid" | "currency">>();
   if (!invoice || (invoice.status !== "sent" && invoice.status !== "partially_paid")) {
     return { ok: false, error: "This invoice isn't waiting for payment." };
   }
@@ -266,6 +310,25 @@ export async function submitPaymentAction(
   if (error || !data) return { ok: false, error: "Could not send your payment details. Please try again." };
 
   await logActivity(session.userId, "payment", data.id, "payment.submitted", { invoice_id: invoiceId, number: invoice.number, amount: parsed.data.amount });
+  const paid = formatMoney(parsed.data.amount, invoice.currency);
+  notify({
+    to: { admins: true },
+    actorId: session.userId,
+    type: "payment_submitted",
+    title: `Payment slip for ${invoice.number}`,
+    body: `${paid} from ${session.profile.full_name || "a client"}`,
+    link: "/admin/payments",
+    email: {
+      eyebrow: "Payment slip",
+      subject: `Payment slip uploaded: ${invoice.number} (${paid})`,
+      paragraphs: [
+        `${session.profile.full_name || "A client"} uploaded a bank slip for ${paid} against invoice ${invoice.number}, paid on ${formatPortalDate(parsed.data.paid_on)}.`,
+        "Check it against your bank account, then approve or reject it.",
+      ],
+      buttonLabel: "Review the payment",
+      reason: "You're receiving this because you're a SYNCODE portal admin.",
+    },
+  });
   refresh(invoiceId, clientId);
   return { ok: true, message: "Thanks! Your payment slip was sent. We'll confirm it shortly." };
 }

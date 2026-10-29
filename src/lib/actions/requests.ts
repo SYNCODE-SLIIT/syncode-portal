@@ -2,8 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth, requireClient, requireStaff } from "@/lib/auth";
+import { REQUEST_STATUS_LABELS } from "@/lib/labels";
+import { notify } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { formatMoney } from "@/lib/domain";
 import type { RequestStatus } from "@/lib/types/database";
 import { ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES } from "@/lib/attachments";
 import {
@@ -68,6 +71,25 @@ export async function createRequestAction(formData: FormData): Promise<CreateReq
   if (error || !data) return { ok: false, error: "Could not submit the request. Please try again." };
 
   await logActivity(session.userId, data.id, "request.submitted", { title: parsed.data.title, project_id: parsed.data.project_id });
+  notify({
+    to: { admins: true, projectStaffOf: parsed.data.project_id },
+    actorId: session.userId,
+    type: "request_submitted",
+    title: `New request: ${parsed.data.title}`,
+    body: `From ${session.profile.full_name || "a client"}`,
+    link: `/admin/requests/${data.id}`,
+    email: {
+      eyebrow: "New request",
+      subject: `New request: ${parsed.data.title}`,
+      paragraphs: [
+        `${session.profile.full_name || "A client"} submitted a new request${parsed.data.priority === "high" ? " (high priority)" : ""}:`,
+        parsed.data.title,
+        parsed.data.description,
+      ],
+      buttonLabel: "Review the request",
+      reason: "You're receiving this because you're on the SYNCODE team for this project.",
+    },
+  });
   refresh(data.id, parsed.data.project_id);
   return { ok: true, requestId: data.id, clientId, message: "Request submitted." };
 }
@@ -114,13 +136,46 @@ export async function addRequestCommentAction(requestId: string, formData: FormD
   const isInternal = isStaff && formData.get("internal") === "on";
 
   const supabase = await createClient();
-  const { data: request } = await supabase.from("feature_requests").select("project_id").eq("id", requestId).maybeSingle();
+  const { data: request } = await supabase
+    .from("feature_requests")
+    .select("project_id, title, submitted_by")
+    .eq("id", requestId)
+    .maybeSingle();
   if (!request) return { ok: false, error: "Request not found." };
 
   const { error } = await supabase
     .from("request_comments")
     .insert({ request_id: requestId, author_id: session.userId, body: parsed.data.body, is_internal: isInternal });
   if (error) return { ok: false, error: "Could not post the comment. Please try again." };
+
+  const author = session.profile.full_name || (isStaff ? "Team SYNCODE" : "The client");
+  const commentEmail = {
+    eyebrow: "New comment",
+    subject: `New comment on "${request.title}"`,
+    paragraphs: [`${author} wrote:`, parsed.data.body],
+    buttonLabel: "Reply in the portal",
+  };
+  // Staff hear about every comment; the client only about comments they can see
+  notify({
+    to: { admins: true, projectStaffOf: request.project_id as string },
+    actorId: session.userId,
+    type: "request_comment",
+    title: `${isInternal ? "Internal comment" : "New comment"} on "${request.title}"`,
+    body: `${author}: ${parsed.data.body.slice(0, 160)}`,
+    link: `/admin/requests/${requestId}`,
+    email: { ...commentEmail, reason: "You're receiving this because you're on the SYNCODE team for this project." },
+  });
+  if (isStaff && !isInternal) {
+    notify({
+      to: { profileIds: [request.submitted_by as string | null] },
+      actorId: session.userId,
+      type: "request_comment",
+      title: `New comment on "${request.title}"`,
+      body: `${author}: ${parsed.data.body.slice(0, 160)}`,
+      link: `/requests/${requestId}`,
+      email: { ...commentEmail, reason: "You're receiving this because you submitted this request." },
+    });
+  }
 
   refresh(requestId, request.project_id as string);
   return { ok: true, message: isInternal ? "Internal comment posted." : "Comment posted." };
@@ -145,11 +200,31 @@ export async function setRequestStatusAction(
     .from("feature_requests")
     .update({ status, decline_reason: status === "declined" ? reason.data : null })
     .eq("id", requestId)
-    .select("project_id")
+    .select("project_id, title, submitted_by")
     .maybeSingle();
   if (error || !data) return { ok: false, error: "Could not update the request." };
 
   await logActivity(session.userId, requestId, `request.${status}`, { status });
+  if (status !== "submitted") {
+    notify({
+      to: { profileIds: [data.submitted_by as string | null] },
+      actorId: session.userId,
+      type: "request_status",
+      title: `"${data.title}" is now ${REQUEST_STATUS_LABELS[status].toLowerCase()}`,
+      body: status === "declined" && reason.data ? reason.data : undefined,
+      link: `/requests/${requestId}`,
+      email: {
+        eyebrow: "Request update",
+        subject: `Your request "${data.title}": ${REQUEST_STATUS_LABELS[status]}`,
+        paragraphs: [
+          `Your request "${data.title}" is now ${REQUEST_STATUS_LABELS[status].toLowerCase()}.`,
+          ...(status === "declined" && reason.data ? [`Reason: ${reason.data}`] : []),
+        ],
+        buttonLabel: "View the request",
+        reason: "You're receiving this because you submitted this request.",
+      },
+    });
+  }
   refresh(requestId, data.project_id as string);
   return { ok: true, message: "Status updated." };
 }
@@ -174,11 +249,30 @@ export async function sendQuoteAction(requestId: string, formData: FormData): Pr
     })
     .eq("id", requestId)
     .in("status", ["submitted", "under_review", "quoted", "declined"])
-    .select("project_id")
+    .select("project_id, title, submitted_by")
     .maybeSingle();
   if (error || !data) return { ok: false, error: "Could not send the quote. Requests that are already approved can't be re-quoted." };
 
   await logActivity(session.userId, requestId, "request.quoted", parsed.data);
+  const quoteParts = [
+    parsed.data.quote_amount !== null ? formatMoney(parsed.data.quote_amount, parsed.data.quote_currency) : null,
+    parsed.data.estimate_hours !== null ? `about ${parsed.data.estimate_hours} hours` : null,
+  ].filter(Boolean);
+  notify({
+    to: { profileIds: [data.submitted_by as string | null] },
+    actorId: session.userId,
+    type: "request_quoted",
+    title: `Quote ready for "${data.title}"`,
+    body: quoteParts.join(" · "),
+    link: `/requests/${requestId}`,
+    email: {
+      eyebrow: "Quote ready",
+      subject: `Quote for "${data.title}"`,
+      paragraphs: [`We've prepared a quote for your request "${data.title}": ${quoteParts.join(", ")}.`, "Please approve or decline it in the portal."],
+      buttonLabel: "Review the quote",
+      reason: "You're receiving this because you submitted this request.",
+    },
+  });
   refresh(requestId, data.project_id as string);
   return { ok: true, message: "Quote sent to the client." };
 }
@@ -202,11 +296,29 @@ export async function respondToQuoteAction(
     .update({ status: decision, decline_reason: decision === "declined" ? parsedReason.data : null })
     .eq("id", requestId)
     .eq("status", "quoted")
-    .select("project_id")
+    .select("project_id, title")
     .maybeSingle();
   if (error || !data) return { ok: false, error: "This quote can no longer be changed. Refresh the page to see its current status." };
 
   await logActivity(session.userId, requestId, decision === "approved" ? "request.quote_approved" : "request.quote_declined", {});
+  notify({
+    to: { admins: true, projectStaffOf: data.project_id as string },
+    actorId: session.userId,
+    type: "request_decision",
+    title: `Quote ${decision} for "${data.title}"`,
+    body: decision === "declined" && parsedReason.data ? parsedReason.data : undefined,
+    link: `/admin/requests/${requestId}`,
+    email: {
+      eyebrow: decision === "approved" ? "Quote approved" : "Quote declined",
+      subject: `Quote ${decision}: "${data.title}"`,
+      paragraphs: [
+        `${session.profile.full_name || "The client"} ${decision} the quote for "${data.title}".`,
+        ...(decision === "declined" && parsedReason.data ? [`Reason: ${parsedReason.data}`] : []),
+      ],
+      buttonLabel: "Open the request",
+      reason: "You're receiving this because you're on the SYNCODE team for this project.",
+    },
+  });
   refresh(requestId, data.project_id as string);
   return { ok: true, message: decision === "approved" ? "Quote approved. The team will start on it." : "Quote declined." };
 }

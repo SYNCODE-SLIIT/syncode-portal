@@ -1,0 +1,86 @@
+/** Escapes text for safe use inside HTML. Every dynamic value in an email goes through this. */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export interface EmailContent {
+  /** Small grey label above the heading, e.g. "Invoice". */
+  eyebrow: string;
+  heading: string;
+  greetingName?: string | null;
+  /** Plain-text paragraphs; line breaks are kept. */
+  paragraphs: string[];
+  buttonLabel: string;
+  buttonUrl: string;
+  /** Short line in the footer saying why the person got this email. */
+  reason: string;
+}
+
+/** Branded HTML email matching the sign-in emails in supabase/templates. */
+export function renderEmail(content: EmailContent): string {
+  const p = (text: string) =>
+    `<p style="margin:0 0 14px;font-size:15px;line-height:24px;color:#3f3f46;">${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
+  const greeting = content.greetingName ? `Hi ${content.greetingName.trim().split(/\s+/)[0]},` : "Hi there,";
+  const url = escapeHtml(content.buttonUrl);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>${escapeHtml(content.heading)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+          <tr>
+            <td style="background:#0a0a0a;border-radius:20px 20px 0 0;padding:28px 40px;">
+              <div style="font-size:20px;font-weight:800;letter-spacing:5px;color:#ffffff;">SYNCODE</div>
+              <div style="margin-top:4px;font-size:11px;font-weight:600;letter-spacing:3px;color:#a1a1aa;text-transform:uppercase;">Client Portal</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#ffffff;border-radius:0 0 20px 20px;padding:40px;">
+              <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:2px;color:#a1a1aa;text-transform:uppercase;">${escapeHtml(content.eyebrow)}</p>
+              <h1 style="margin:0 0 20px;font-size:24px;line-height:32px;font-weight:700;color:#0a0a0a;">${escapeHtml(content.heading)}</h1>
+              ${p(greeting)}
+              ${content.paragraphs.map(p).join("\n              ")}
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+                <tr>
+                  <td bgcolor="#0a0a0a" style="border-radius:999px;">
+                    <a href="${url}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:999px;">${escapeHtml(content.buttonLabel)}</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:28px 24px 0;font-size:12px;line-height:19px;color:#a1a1aa;">
+              <p style="margin:0;font-weight:600;color:#71717a;">Team SYNCODE</p>
+              <p style="margin:2px 0 0;">1166 Park Road, Pannipitiya 10230, Sri Lanka</p>
+              <p style="margin:2px 0 0;"><a href="mailto:team.syncode@gmail.com" style="color:#a1a1aa;">team.syncode@gmail.com</a> &middot; +94 77 921 4221</p>
+              <p style="margin:14px 0 0;">${escapeHtml(content.reason)} You can turn off email notifications on your Account page in the portal.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+}
+
+/** Plain-text version for email clients that don't show HTML. */
+export function renderEmailText(content: EmailContent): string {
+  const greeting = content.greetingName ? `Hi ${content.greetingName.trim().split(/\s+/)[0]},` : "Hi there,";
+  return [greeting, "", ...content.paragraphs.flatMap((t) => [t, ""]), `${content.buttonLabel}: ${content.buttonUrl}`, "", "Team SYNCODE"].join("\n");
+}

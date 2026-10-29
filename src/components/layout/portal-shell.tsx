@@ -19,6 +19,7 @@ import {
 import { signOutAction } from "@/lib/actions/auth";
 import type { UserRole } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "./notification-bell";
 
 interface NavItem {
   href: string;
@@ -95,6 +96,9 @@ export function PortalShell({
                   ? "Team Workspace"
                   : "Client Portal"}
             </p>
+          </div>
+          <div className="ml-auto">
+            <NotificationBell />
           </div>
         </div>
 
@@ -176,15 +180,18 @@ export function PortalShell({
           />
           <span className="text-sm font-semibold">SYNCODE Portal</span>
         </div>
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="size-3.5" />
-            <span>Sign out</span>
-          </button>
-        </form>
+        <div className="flex items-center gap-2">
+          <NotificationBell align="right" />
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="size-3.5" />
+              <span>Sign out</span>
+            </button>
+          </form>
+        </div>
       </header>
 
       {/* Main Content */}

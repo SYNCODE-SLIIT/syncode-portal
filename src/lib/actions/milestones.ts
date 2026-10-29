@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
+import { notify } from "@/lib/notify";
 import { createClient } from "@/lib/supabase/server";
 import type { MilestoneStatus } from "@/lib/types/database";
 import { firstError, formFields, isUuid, milestoneSchema } from "@/lib/validation";
@@ -15,6 +16,38 @@ async function projectIdOf(supabase: SupabaseServerClient, milestoneId: string):
   if (!isUuid(milestoneId)) return null;
   const { data } = await supabase.from("milestones").select("project_id").eq("id", milestoneId).maybeSingle();
   return (data?.project_id as string | undefined) ?? null;
+}
+
+/** Tells the client when a milestone is newly completed. */
+async function notifyIfCompleted(supabase: SupabaseServerClient, milestoneId: string, previousStatus: string | null, actorId: string) {
+  const { data } = await supabase
+    .from("milestones")
+    .select("title, status, project_id, projects(name, client_id)")
+    .eq("id", milestoneId)
+    .maybeSingle();
+  const project = data?.projects as unknown as { name: string; client_id: string } | null;
+  if (!data || !project || data.status !== "done" || previousStatus === "done") return;
+
+  notify({
+    to: { clientContactsOf: project.client_id },
+    actorId,
+    type: "milestone_done",
+    title: `Milestone completed: ${data.title}`,
+    body: project.name,
+    link: `/projects/${data.project_id}`,
+    email: {
+      eyebrow: "Milestone completed",
+      subject: `${project.name}: "${data.title}" is done`,
+      paragraphs: [`Good news! The "${data.title}" stage of ${project.name} is complete.`, "You can see the latest progress in the portal."],
+      buttonLabel: "View progress",
+      reason: "You're receiving this because you're a contact on this project.",
+    },
+  });
+}
+
+async function statusOf(supabase: SupabaseServerClient, milestoneId: string): Promise<string | null> {
+  const { data } = await supabase.from("milestones").select("status").eq("id", milestoneId).maybeSingle();
+  return (data?.status as string | undefined) ?? null;
 }
 
 function refresh(projectId: string) {
@@ -69,8 +102,10 @@ export async function updateMilestoneAction(milestoneId: string, formData: FormD
   const projectId = await projectIdOf(supabase, milestoneId);
   if (!projectId) return { ok: false, error: "Milestone not found." };
 
+  const previousStatus = await statusOf(supabase, milestoneId);
   const { error } = await supabase.from("milestones").update(parsed.data).eq("id", milestoneId);
   if (error) return { ok: false, error: "Could not save the milestone. Please try again." };
+  await notifyIfCompleted(supabase, milestoneId, previousStatus, session.userId);
 
   await supabase.from("activity_log").insert({
     actor_id: session.userId,
@@ -94,8 +129,10 @@ export async function setMilestoneStatusAction(milestoneId: string, status: Mile
   if (!projectId) return { ok: false, error: "Milestone not found." };
 
   // The database sets percent to 100 for done and 0 for not started
+  const previousStatus = await statusOf(supabase, milestoneId);
   const { error } = await supabase.from("milestones").update({ status }).eq("id", milestoneId);
   if (error) return { ok: false, error: "Could not update the milestone." };
+  await notifyIfCompleted(supabase, milestoneId, previousStatus, session.userId);
 
   await supabase.from("activity_log").insert({
     actor_id: session.userId,

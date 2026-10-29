@@ -2,9 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
+import { notify } from "@/lib/notify";
 import { createClient } from "@/lib/supabase/server";
 import { firstError, formFields, isUuid, projectUpdateSchema } from "@/lib/validation";
 import type { ActionResult } from "./auth";
+
+/** First part of a long text, for notification previews. */
+function preview(text: string) {
+  return text.length > 200 ? `${text.slice(0, 197)}…` : text;
+}
 
 function refresh(projectId: string) {
   revalidatePath(`/admin/projects/${projectId}`);
@@ -34,6 +40,27 @@ export async function createProjectUpdateAction(projectId: string, formData: For
     action: "update.posted",
     details: { project_id: projectId, visibility: parsed.data.visibility },
   });
+
+  if (parsed.data.visibility === "client") {
+    const { data: project } = await supabase.from("projects").select("name, client_id").eq("id", projectId).maybeSingle();
+    if (project) {
+      notify({
+        to: { clientContactsOf: project.client_id as string },
+        actorId: session.userId,
+        type: "project_update",
+        title: `New update on ${project.name}`,
+        body: preview(parsed.data.body),
+        link: `/projects/${projectId}`,
+        email: {
+          eyebrow: "Project update",
+          subject: `New update on ${project.name}`,
+          paragraphs: [`${session.profile.full_name || "Team SYNCODE"} posted an update on your project:`, parsed.data.body],
+          buttonLabel: "View the project",
+          reason: "You're receiving this because you're a contact on this project.",
+        },
+      });
+    }
+  }
 
   refresh(projectId);
   return {

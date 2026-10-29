@@ -24,7 +24,23 @@ export async function updateSession(request: NextRequest) {
 
   // Validates the session and refreshes it if it has expired.
   // Nothing may run between creating the client and this call.
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+
+  // Optimistic check: send signed-out visitors straight to /login. Pages still verify
+  // the user and their role on the server; this only avoids loading a page first.
+  const { pathname } = request.nextUrl;
+  const isProtected =
+    pathname === "/" || PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  if (!data?.claims && isProtected) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    const redirect = NextResponse.redirect(loginUrl);
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  }
 
   return response;
 }
+
+const PROTECTED_PREFIXES = ["/admin", "/dashboard", "/projects", "/requests", "/invoices", "/account", "/welcome"];

@@ -1,12 +1,44 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { redirect } from "next/navigation";
+import { getHomePathForRole, getOptionalAuth } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
   title: "Sign in",
 };
 
-export default function LoginPage() {
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_link:
+    "That sign-in link has expired or was already used. Request a fresh link below.",
+  deactivated:
+    "Your account has been deactivated. Please contact Team SYNCODE for help.",
+  profile_missing:
+    "Your account setup is incomplete. Please contact Team SYNCODE.",
+};
+
+async function LoginContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const session = await getOptionalAuth();
+  if (session) {
+    redirect(getHomePathForRole(session.profile.role));
+  }
+
+  const params = await searchParams;
+  const initialError = params.error ? (ERROR_MESSAGES[params.error] ?? null) : null;
+
+  return <LoginForm initialError={initialError} />;
+}
+
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   return (
     <main className="relative flex min-h-dvh flex-1 items-center justify-center overflow-hidden px-4 py-12">
       {/* Soft spotlight behind the form */}
@@ -37,7 +69,13 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <LoginForm />
+        <Suspense
+          fallback={
+            <div className="h-64 animate-pulse rounded-2xl border border-border bg-card p-6" />
+          }
+        >
+          <LoginContent searchParams={searchParams} />
+        </Suspense>
 
         <p className="mt-8 text-center text-xs text-muted-foreground">
           Need access? Contact{" "}

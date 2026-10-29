@@ -1,6 +1,19 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { getHomePathForRole, getOptionalAuth } from "@/lib/auth";
 
-// Signed-in users will be sent to their dashboard once login is in place.
+async function HomeRedirect(): Promise<null> {
+  const session = await getOptionalAuth();
+  if (!session) {
+    redirect("/login");
+  }
+  redirect(getHomePathForRole(session.profile.role));
+}
+
 export default function Home() {
-  redirect("/login");
+  return (
+    <Suspense fallback={null}>
+      <HomeRedirect />
+    </Suspense>
+  );
 }

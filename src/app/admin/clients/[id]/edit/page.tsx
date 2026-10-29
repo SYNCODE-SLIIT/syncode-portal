@@ -18,13 +18,16 @@ async function EditClientContent({ params }: { params: Promise<{ id: string }> }
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const { data: client } = await supabase.from("clients").select("*").eq("id", id).maybeSingle<Client>();
+  const [{ data: client }, { data: internal }] = await Promise.all([
+    supabase.from("clients").select("*").eq("id", id).maybeSingle<Client>(),
+    supabase.from("client_internal").select("notes").eq("client_id", id).maybeSingle<{ notes: string | null }>(),
+  ]);
   if (!client) notFound();
 
   return (
     <>
       <PageHeader eyebrow="Edit client" title={client.name} />
-      <ClientForm client={client} />
+      <ClientForm client={client} notes={internal?.notes ?? ""} />
     </>
   );
 }

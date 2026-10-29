@@ -169,3 +169,18 @@ export function formatPortalDate(dateInput: string | Date): string {
     timeZone: "Asia/Colombo",
   }).format(date);
 }
+
+/**
+ * Formats a timestamp as `26 Oct 2026, 14:05` in Sri Lanka time (Asia/Colombo).
+ */
+export function formatPortalDateTime(dateInput: string | Date): string {
+  const date = new Date(dateInput);
+  const day = formatPortalDate(date);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Colombo",
+  }).format(date);
+  return `${day}, ${time}`;
+}

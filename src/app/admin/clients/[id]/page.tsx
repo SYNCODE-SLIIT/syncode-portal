@@ -30,8 +30,9 @@ async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: client }, { data: contacts }, { data: projects }] = await Promise.all([
+  const [{ data: client }, { data: internal }, { data: contacts }, { data: projects }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).maybeSingle<Client>(),
+    supabase.from("client_internal").select("notes").eq("client_id", id).maybeSingle<{ notes: string | null }>(),
     supabase
       .from("profiles")
       .select("*")
@@ -103,10 +104,10 @@ async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
               {client.address ? <span className="whitespace-pre-line">{client.address}</span> : null}
             </Detail>
           </dl>
-          {client.notes && (
+          {internal?.notes && (
             <div className="border-t border-border pt-4">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Internal notes</p>
-              <p className="mt-2 whitespace-pre-line text-sm">{client.notes}</p>
+              <p className="mt-2 whitespace-pre-line text-sm">{internal.notes}</p>
             </div>
           )}
           <p className="text-xs text-muted-foreground">Added {formatPortalDate(client.created_at)}</p>

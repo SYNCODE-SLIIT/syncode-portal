@@ -43,11 +43,12 @@ async function validStaffIds(supabase: SupabaseServerClient, ids: string[]): Pro
   return (data ?? []).map((row) => row.id as string);
 }
 
-/** The columns of the projects table (team members are stored separately). */
-function projectRow(input: ProjectInput): Omit<ProjectInput, "member_ids"> {
+/** The columns of the projects table. Team members and the repository link are stored separately. */
+function projectRow(input: ProjectInput): Omit<ProjectInput, "member_ids" | "repo_url"> {
   const row: Partial<ProjectInput> = { ...input };
   delete row.member_ids;
-  return row as Omit<ProjectInput, "member_ids">;
+  delete row.repo_url;
+  return row as Omit<ProjectInput, "member_ids" | "repo_url">;
 }
 
 /** Staff action: creates a project with its team, then opens it. */
@@ -66,6 +67,10 @@ export async function createProjectAction(formData: FormData): Promise<ActionRes
     .single();
   if (error || !data) {
     return { ok: false, error: "Could not create the project. Check the client still exists and try again." };
+  }
+
+  if (parsed.data.repo_url) {
+    await supabase.from("project_internal").insert({ project_id: data.id, repo_url: parsed.data.repo_url });
   }
 
   const memberIds = await validStaffIds(supabase, parsed.data.member_ids);
@@ -104,6 +109,10 @@ export async function updateProjectAction(projectId: string, formData: FormData)
   if (error || !data) {
     return { ok: false, error: "Could not save the project. Please try again." };
   }
+
+  await supabase
+    .from("project_internal")
+    .upsert({ project_id: projectId, repo_url: parsed.data.repo_url, updated_at: new Date().toISOString() });
 
   const memberIds = await validStaffIds(supabase, parsed.data.member_ids);
   const { data: current } = await supabase.from("project_members").select("profile_id").eq("project_id", projectId);

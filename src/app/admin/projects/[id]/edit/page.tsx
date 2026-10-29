@@ -19,8 +19,9 @@ async function EditProjectContent({ params }: { params: Promise<{ id: string }> 
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: project }, { data: members }] = await Promise.all([
+  const [{ data: project }, { data: internal }, { data: members }] = await Promise.all([
     supabase.from("projects").select("*").eq("id", id).maybeSingle<Project>(),
+    supabase.from("project_internal").select("repo_url").eq("project_id", id).maybeSingle<{ repo_url: string | null }>(),
     supabase.from("project_members").select("profile_id").eq("project_id", id),
   ]);
   if (!project) notFound();
@@ -32,6 +33,7 @@ async function EditProjectContent({ params }: { params: Promise<{ id: string }> 
       <PageHeader eyebrow="Edit project" title={project.name} />
       <ProjectForm
         project={project}
+        repoUrl={internal?.repo_url ?? ""}
         memberIds={(members ?? []).map((m) => m.profile_id as string)}
         clients={clients}
         staff={staff}

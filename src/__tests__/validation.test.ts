@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { clientSchema, isUuid, projectSchema } from "../lib/validation.ts";
+import { clientSchema, isUuid, milestoneSchema, projectSchema, projectUpdateSchema } from "../lib/validation.ts";
 
 const CLIENT_ID = "3f2b8c1e-5d4a-4b6f-9a1c-2e7d8f9a0b1c";
 
@@ -85,5 +85,33 @@ describe("Project form validation", () => {
   it("recognises route ids", () => {
     assert.equal(isUuid(CLIENT_ID), true);
     assert.equal(isUuid("new"), false);
+  });
+});
+
+describe("Milestone and update validation", () => {
+  const base = { title: "Design", description: "", status: "not_started", percent: "", weight: "", due_date: "" };
+
+  it("defaults weight to 1 and progress to 0", () => {
+    const result = milestoneSchema.parse(base);
+    assert.equal(result.weight, 1);
+    assert.equal(result.percent, 0);
+    assert.equal(result.due_date, null);
+  });
+
+  it("rejects out-of-range progress, zero weight and unknown statuses", () => {
+    assert.equal(milestoneSchema.safeParse({ ...base, status: "in_progress", percent: "120" }).success, false);
+    assert.equal(milestoneSchema.safeParse({ ...base, weight: "0" }).success, false);
+    assert.equal(milestoneSchema.safeParse({ ...base, status: "blocked" }).success, false);
+    assert.equal(milestoneSchema.safeParse({ ...base, title: "" }).success, false);
+  });
+
+  it("accepts fractional weights", () => {
+    assert.equal(milestoneSchema.parse({ ...base, weight: "2.5" }).weight, 2.5);
+  });
+
+  it("requires update text and a known visibility", () => {
+    assert.equal(projectUpdateSchema.safeParse({ body: "  ", visibility: "client" }).success, false);
+    assert.equal(projectUpdateSchema.safeParse({ body: "Design is ready", visibility: "public" }).success, false);
+    assert.equal(projectUpdateSchema.parse({ body: " Design is ready ", visibility: "internal" }).body, "Design is ready");
   });
 });

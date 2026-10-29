@@ -57,9 +57,15 @@ export interface Client {
   email: string | null;
   phone: string | null;
   address: string | null;
-  notes: string | null;
   status: ClientStatus;
   created_at: string;
+}
+
+/** Staff-only fields for a client (separate table so clients can't read them). */
+export interface ClientInternal {
+  client_id: string;
+  notes: string | null;
+  updated_at: string;
 }
 
 export interface Project {
@@ -71,13 +77,19 @@ export interface Project {
   description: string | null;
   live_url: string | null;
   staging_url: string | null;
-  repo_url: string | null;
   start_date: string | null;
   target_date: string | null;
   progress_mode: ProgressMode;
   manual_progress: number;
   created_by: string | null;
   created_at: string;
+}
+
+/** Staff-only fields for a project (separate table so clients can't read them). */
+export interface ProjectInternal {
+  project_id: string;
+  repo_url: string | null;
+  updated_at: string;
 }
 
 export interface ProjectMember {

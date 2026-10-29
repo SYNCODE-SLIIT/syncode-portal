@@ -10,26 +10,42 @@ import { getUserAccounts } from "@/lib/data/users";
 import { formatPortalDate } from "@/lib/domain";
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLES, PROJECT_TYPE_LABELS } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile, Project } from "@/lib/types/database";
+import type { Milestone, Profile, Project } from "@/lib/types/database";
 import { isUuid } from "@/lib/validation";
+import { MilestonesPanel } from "./milestones-panel";
+import { UpdatesPanel, type UpdateItem } from "./updates-panel";
 
 export const metadata: Metadata = {
   title: "Project",
 };
 
 async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  const session = await requireStaff();
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: project }, { data: memberRows }] = await Promise.all([
+  const [{ data: project }, { data: internal }, { data: memberRows }, { data: milestones }, { data: updateRows }] = await Promise.all([
     supabase
       .from("projects")
       .select("*, clients(id, name)")
       .eq("id", id)
       .maybeSingle<Project & { clients: { id: string; name: string } | null }>(),
+    supabase.from("project_internal").select("repo_url").eq("project_id", id).maybeSingle<{ repo_url: string | null }>(),
     supabase.from("project_members").select("profiles(id, full_name, role)").eq("project_id", id),
+    supabase
+      .from("milestones")
+      .select("*")
+      .eq("project_id", id)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true })
+      .returns<Milestone[]>(),
+    supabase
+      .from("project_updates")
+      .select("id, body, visibility, created_at, author_id, profiles(full_name)")
+      .eq("project_id", id)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
   if (!project) notFound();
 
@@ -41,6 +57,14 @@ async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
     getUserAccounts(members.map((m) => m.id)),
   ]);
   const percent = progress.get(project.id) ?? 0;
+  const updates: UpdateItem[] = (updateRows ?? []).map((u) => ({
+    id: u.id as string,
+    body: u.body as string,
+    visibility: u.visibility as UpdateItem["visibility"],
+    created_at: u.created_at as string,
+    author_id: (u.author_id as string | null) ?? null,
+    author_name: (u.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
+  }));
 
   return (
     <div className="space-y-6">
@@ -96,6 +120,15 @@ async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
               <p className="text-sm text-muted-foreground">No description yet. Add one so the client knows what&apos;s being built.</p>
             )}
           </section>
+
+          <MilestonesPanel projectId={project.id} milestones={milestones ?? []} />
+
+          <UpdatesPanel
+            projectId={project.id}
+            updates={updates}
+            currentUserId={session.userId}
+            isAdmin={session.profile.role === "admin"}
+          />
         </div>
 
         <div className="space-y-6">
@@ -103,7 +136,7 @@ async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
             <h2 className="text-base font-semibold">Links</h2>
             <ProjectLink icon={Globe} label="Live site" href={project.live_url} />
             <ProjectLink icon={TestTube2} label="Staging" href={project.staging_url} />
-            <ProjectLink icon={GitBranch} label="Repository (internal)" href={project.repo_url} />
+            <ProjectLink icon={GitBranch} label="Repository (internal)" href={internal?.repo_url ?? null} />
           </section>
 
           <section className="space-y-3 rounded-2xl border border-border bg-card p-6">

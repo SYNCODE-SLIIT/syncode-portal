@@ -82,6 +82,39 @@ export const projectSchema = z
     path: ["target_date"],
   });
 
+export const milestoneSchema = z.object({
+  title: z.string().trim().min(2, "Enter the milestone title.").max(120, "Milestone title is too long."),
+  description: optionalText(1000, "Description"),
+  status: z.enum(["not_started", "in_progress", "done"]),
+  percent: z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? 0 : Number(value)))
+    .pipe(
+      z
+        .number("Progress must be a number from 0 to 100.")
+        .int("Progress must be a whole number.")
+        .min(0, "Progress can't be below 0%.")
+        .max(100, "Progress can't be above 100%.")
+    ),
+  weight: z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? 1 : Number(value)))
+    .pipe(
+      z
+        .number("Weight must be a number.")
+        .min(0.1, "Weight must be at least 0.1.")
+        .max(100, "Weight can't be more than 100.")
+    ),
+  due_date: optionalDate,
+});
+
+export const projectUpdateSchema = z.object({
+  body: z.string().trim().min(2, "Write the update first.").max(5000, "Updates can be up to 5,000 characters."),
+  visibility: z.enum(["client", "internal"]),
+});
+
 export type ClientInput = z.infer<typeof clientSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;
 

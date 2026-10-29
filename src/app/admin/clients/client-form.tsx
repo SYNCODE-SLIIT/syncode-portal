@@ -12,7 +12,7 @@ import type { Client } from "@/lib/types/database";
 
 const INPUT = "h-11 rounded-xl px-3.5";
 
-export function ClientForm({ client }: { client?: Client }) {
+export function ClientForm({ client, notes = "" }: { client?: Client; notes?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const cancelHref = client ? `/admin/clients/${client.id}` : "/admin/clients";
@@ -89,7 +89,7 @@ export function ClientForm({ client }: { client?: Client }) {
             id="notes"
             name="notes"
             rows={4}
-            defaultValue={client?.notes ?? ""}
+            defaultValue={notes}
             placeholder="Only SYNCODE staff can see these notes."
           />
         </div>

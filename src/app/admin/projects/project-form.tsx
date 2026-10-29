@@ -21,12 +21,14 @@ export interface StaffOption {
 
 export function ProjectForm({
   project,
+  repoUrl = "",
   memberIds = [],
   clients,
   staff,
   defaultClientId,
 }: {
   project?: Project;
+  repoUrl?: string;
   memberIds?: string[];
   clients: { id: string; name: string }[];
   staff: StaffOption[];
@@ -141,7 +143,7 @@ export function ProjectForm({
             <Input
               id="repo_url"
               name="repo_url"
-              defaultValue={project?.repo_url ?? ""}
+              defaultValue={repoUrl}
               placeholder="github.com/SYNCODE-SLIIT/…"
               className={INPUT}
             />

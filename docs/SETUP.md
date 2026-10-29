@@ -28,26 +28,23 @@ All of them are safe to run again.
 
 ## 3. Email templates
 
-**Authentication → Emails → Templates.** Replace the link in two templates so sign-in works on any device (the default links don't work with server-side sign-in).
+**Authentication → Emails → Templates.** The branded templates live in [`supabase/templates/`](../supabase/templates). For each row below, open the template in Supabase, set the subject, then replace the whole **Message body** with the contents of the file (open the file, select all, copy, paste).
 
-**Magic Link**, subject `Your SYNCODE Client Portal sign-in link`:
+| Supabase template | Subject | File |
+|---|---|---|
+| Invite user | `You're invited to the SYNCODE Client Portal` | `invite.html` |
+| Magic link | `Your SYNCODE Client Portal sign-in link` | `magic-link.html` |
+| Reset password | `Reset your SYNCODE Client Portal password` | `reset-password.html` |
+| Change email address | `Confirm your new email address` | `change-email.html` |
+| Reauthentication | `Your SYNCODE Client Portal verification code` | `reauthentication.html` |
+| Confirm sign up | `Confirm your email for the SYNCODE Client Portal` | `confirm-signup.html` |
 
-```html
-<h2>Sign in to the SYNCODE Client Portal</h2>
-<p>Click the button below to sign in. The link expires in 1 hour and can be used once.</p>
-<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">Sign in</a></p>
-<p>If you didn't ask for this, you can ignore this email.</p>
-```
+Notes:
 
-**Invite user**, subject `You're invited to the SYNCODE Client Portal`:
-
-```html
-<h2>Welcome to the SYNCODE Client Portal</h2>
-<p>Team SYNCODE has invited you to the client portal, where you can follow your projects, updates and invoices.</p>
-<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=invite">Accept the invitation</a></p>
-```
-
-The app always sends a redirect URL that already contains `?`, which is why the templates start with `&`.
+- The invite and magic-link templates start their link with `{{ .RedirectTo }}&…` because the app always sends a redirect URL that already contains `?`. Don't change that to `{{ .ConfirmationURL }}`: the default links don't work with server-side sign-in.
+- The other templates build their link from `{{ .SiteURL }}`, so keep **URL Configuration → Site URL** pointing at the live portal (change it to `https://portal.teamsyncode.com` once the domain is connected).
+- Sign-ups are turned off, so "Confirm sign up" isn't normally sent; it's styled anyway so nothing ever goes out with the default look.
+- A password reset signs the person in and opens their **Account** page, where they choose a new password.
 
 ## 4. Email delivery
 

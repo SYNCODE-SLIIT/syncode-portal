@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getHomePathForRole, requireAdmin, requireAuth, requireStaff } from "@/lib/auth";
+import { setFlash } from "@/lib/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole } from "@/lib/types/database";
@@ -178,6 +179,7 @@ export async function completeWelcomeAction(
     };
   }
 
+  await setFlash("You're all set. Welcome to the SYNCODE portal!");
   redirect(getHomePathForRole(session.profile.role));
 }
 

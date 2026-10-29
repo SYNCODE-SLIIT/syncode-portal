@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/auth";
+import { setFlash } from "@/lib/flash";
 import { createClient } from "@/lib/supabase/server";
 import { clientSchema, firstError, formFields } from "@/lib/validation";
 import type { ActionResult } from "./auth";
@@ -36,6 +37,7 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
   });
 
   revalidatePath("/admin/clients");
+  await setFlash("Client created.");
   redirect(`/admin/clients/${data.id}`);
 }
 
@@ -75,5 +77,6 @@ export async function updateClientAction(clientId: string, formData: FormData): 
 
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
+  await setFlash("Client details saved.");
   redirect(`/admin/clients/${clientId}`);
 }

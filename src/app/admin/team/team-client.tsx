@@ -5,6 +5,7 @@ import { Loader2, Send, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NoticeToast } from "@/components/ui/toaster";
 import {
   inviteUserAction,
   toggleUserActiveAction,
@@ -165,14 +166,7 @@ export function TeamManagementClient({
           </p>
         )}
 
-        {notice && (
-          <p
-            role="status"
-            className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
-          >
-            {notice}
-          </p>
-        )}
+        {notice && <NoticeToast message={notice} />}
       </div>
 
       {/* People List */}

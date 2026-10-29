@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
+import { Suspense } from "react";
+import { FlashToast, Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const inter = Inter({
@@ -32,7 +34,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`dark ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Toaster />
+        {/* The pathname can depend on request-time params, so this stays outside the prerendered shell */}
+        <Suspense fallback={null}>
+          <FlashToast />
+        </Suspense>
+      </body>
     </html>
   );
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/auth";
+import { setFlash } from "@/lib/flash";
 import { createClient } from "@/lib/supabase/server";
 import { firstError, formFields, projectSchema, type ProjectInput } from "@/lib/validation";
 import type { ActionResult } from "./auth";
@@ -88,6 +89,7 @@ export async function createProjectAction(formData: FormData): Promise<ActionRes
 
   revalidatePath("/admin/projects");
   revalidatePath(`/admin/clients/${parsed.data.client_id}`);
+  await setFlash("Project created.");
   redirect(`/admin/projects/${data.id}`);
 }
 
@@ -138,5 +140,6 @@ export async function updateProjectAction(projectId: string, formData: FormData)
   revalidatePath("/admin/projects");
   revalidatePath(`/admin/projects/${projectId}`);
   revalidatePath(`/admin/clients/${parsed.data.client_id}`);
+  await setFlash("Project saved.");
   redirect(`/admin/projects/${projectId}`);
 }

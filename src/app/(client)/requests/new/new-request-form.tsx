@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Paperclip, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FormMessage, Select, Textarea, secondaryButtonClass } from "@/components/ui/form-fields";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,7 @@ export function NewRequestForm({
         if (!recorded.ok) failed.push(file.name);
       }
 
+      toast.success("Request sent. Team SYNCODE will review it soon.");
       router.push(`/requests/${result.requestId}${failed.length ? "?upload=failed" : ""}`);
     });
   };

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "cn";
+import { NoticeToast } from "./toaster";
 
 // Shared field styles so native selects and textareas match the Input component
 const FIELD =
@@ -23,13 +24,8 @@ export function FormMessage({ error, notice }: { error?: string | null; notice?:
       </p>
     );
   }
-  if (notice) {
-    return (
-      <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300">
-        {notice}
-      </p>
-    );
-  }
+  // Success messages pop up in the corner and close by themselves
+  if (notice) return <NoticeToast message={notice} />;
   return null;
 }
 

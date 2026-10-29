@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getHomePathForRole, requireAdmin, requireAuth } from "@/lib/auth";
+import { getHomePathForRole, requireAdmin, requireAuth, requireStaff } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole } from "@/lib/types/database";
@@ -244,7 +244,8 @@ export async function updateAccountAction(
 export async function inviteUserAction(
   formData: FormData
 ): Promise<ActionResult> {
-  const adminSession = await requireAdmin();
+  // Admins invite anyone; team members may invite client contacts only (Master Plan 4.1)
+  const adminSession = await requireStaff();
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fullName = String(formData.get("full_name") ?? "").trim();
@@ -257,6 +258,14 @@ export async function inviteUserAction(
 
   if (!["admin", "team", "client"].includes(roleInput)) {
     return { ok: false, error: "Invalid user role selected." };
+  }
+
+  if (roleInput !== "client" && adminSession.profile.role !== "admin") {
+    return { ok: false, error: "Only admins can invite SYNCODE team members." };
+  }
+
+  if (fullName.length < 2 || fullName.length > 120) {
+    return { ok: false, error: "Please enter the person's full name." };
   }
 
   if (roleInput === "client" && !clientIdInput) {

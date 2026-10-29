@@ -31,8 +31,8 @@ interface NavItem {
 
 const STAFF_NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/clients", label: "Clients", icon: Building2, soon: true },
-  { href: "/admin/projects", label: "Projects", icon: FolderKanban, soon: true },
+  { href: "/admin/clients", label: "Clients", icon: Building2 },
+  { href: "/admin/projects", label: "Projects", icon: FolderKanban },
   { href: "/admin/requests", label: "Requests", icon: MessageSquarePlus, soon: true },
   { href: "/admin/invoices", label: "Invoices", icon: FileText, adminOnly: true, soon: true },
   { href: "/admin/payments", label: "Payments", icon: CreditCard, adminOnly: true, soon: true },

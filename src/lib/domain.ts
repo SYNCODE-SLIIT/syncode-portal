@@ -115,6 +115,28 @@ export function calculateInvoiceTotals(
   };
 }
 
+/** Today's date in Sri Lanka as `YYYY-MM-DD`. */
+export function colomboToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Colombo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/** Adds whole days to a `YYYY-MM-DD` date. */
+export function addDays(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** What's still owed on an invoice, never below zero. */
+export function invoiceBalance(total: number, amountPaid: number): number {
+  return Math.max(0, Math.round((Number(total) - Number(amountPaid)) * 100) / 100);
+}
+
 /**
  * Derives display status including `overdue` (sent or partially_paid and due_date < today).
  * Per Master Plan 6: overdue is derived, not stored.
@@ -125,14 +147,7 @@ export function getInvoiceDisplayStatus(
   todayIsoDate?: string
 ): DisplayInvoiceStatus {
   if (status === "sent" || status === "partially_paid") {
-    const today =
-      todayIsoDate ??
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Colombo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date());
+    const today = todayIsoDate ?? colomboToday();
 
     if (dueDate < today) {
       return "overdue";

@@ -13,10 +13,17 @@ import {
 import { requireStaff } from "@/lib/auth";
 import { getProjectProgress } from "@/lib/data/projects";
 import { getUserAccounts } from "@/lib/data/users";
-import { formatPortalDate } from "@/lib/domain";
-import { CLIENT_STATUS_LABELS, PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLES, PROJECT_TYPE_LABELS } from "@/lib/labels";
+import { formatMoney, formatPortalDate, getInvoiceDisplayStatus } from "@/lib/domain";
+import {
+  CLIENT_STATUS_LABELS,
+  INVOICE_STATUS_LABELS,
+  INVOICE_STATUS_STYLES,
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_STYLES,
+  PROJECT_TYPE_LABELS,
+} from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import type { Client, Profile, Project } from "@/lib/types/database";
+import type { Client, Invoice, Profile, Project } from "@/lib/types/database";
 import { isUuid } from "@/lib/validation";
 import { InviteContactForm } from "./invite-contact-form";
 
@@ -25,12 +32,13 @@ export const metadata: Metadata = {
 };
 
 async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  const session = await requireStaff();
+  const isAdmin = session.profile.role === "admin";
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: client }, { data: internal }, { data: contacts }, { data: projects }] = await Promise.all([
+  const [{ data: client }, { data: internal }, { data: contacts }, { data: projects }, { data: invoices }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).maybeSingle<Client>(),
     supabase.from("client_internal").select("notes").eq("client_id", id).maybeSingle<{ notes: string | null }>(),
     supabase
@@ -41,6 +49,10 @@ async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
       .order("created_at", { ascending: true })
       .returns<Profile[]>(),
     supabase.from("projects").select("*").eq("client_id", id).order("created_at", { ascending: false }).returns<Project[]>(),
+    // Billing is admin-only; team members get an empty list from row-level security anyway
+    isAdmin
+      ? supabase.from("invoices").select("*").eq("client_id", id).order("created_at", { ascending: false }).limit(20).returns<Invoice[]>()
+      : Promise.resolve({ data: [] as Invoice[] }),
   ]);
 
   if (!client) notFound();
@@ -149,6 +161,44 @@ async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
           )}
         </section>
       </div>
+
+      {isAdmin && (
+        <section className="rounded-2xl border border-border bg-card">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-4">
+            <h2 className="text-base font-semibold">Invoices ({(invoices ?? []).length})</h2>
+            <Link href={`/admin/invoices/new?client=${client.id}`} className={`${secondaryButtonClass} h-9 px-4`}>
+              <Plus className="size-4" />
+              New invoice
+            </Link>
+          </div>
+          {(invoices ?? []).length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">No invoices for this client yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {(invoices ?? []).map((inv) => {
+                const display = getInvoiceDisplayStatus(inv.status, inv.due_date);
+                return (
+                  <li key={inv.id}>
+                    <Link
+                      href={`/admin/invoices/${inv.id}`}
+                      className="flex items-center justify-between gap-3 px-6 py-3 text-sm transition-colors hover:bg-secondary/50"
+                    >
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium tabular-nums">{inv.number}</span>
+                        <span className="text-muted-foreground"> · {formatPortalDate(inv.issue_date)}</span>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <span className="tabular-nums">{formatMoney(inv.total, inv.currency)}</span>
+                        <StatusBadge className={INVOICE_STATUS_STYLES[display]}>{INVOICE_STATUS_LABELS[display]}</StatusBadge>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* Contacts */}
       <section className="rounded-2xl border border-border bg-card">

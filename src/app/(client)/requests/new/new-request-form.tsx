@@ -11,14 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createRequestAction, recordRequestAttachmentAction } from "@/lib/actions/requests";
 import { createClient } from "@/lib/supabase/client";
-import { ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES } from "@/lib/attachments";
+import { ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, safeFileName } from "@/lib/attachments";
 
 const MAX_FILES = 3;
-
-function safeFileName(name: string) {
-  const cleaned = name.normalize("NFKD").replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_");
-  return cleaned.slice(-100) || "file";
-}
 
 export function NewRequestForm({
   projects,

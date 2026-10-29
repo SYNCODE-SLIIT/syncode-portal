@@ -10,6 +10,7 @@ Supabase dashboard → **SQL Editor** → New query. Paste and run each file in 
 1. `20261027000001_initial_schema.sql`
 2. `20261029000001_grants_and_security_fixes.sql`
 3. `20261030000001_staff_only_fields.sql` (moves internal notes and repository links to staff-only tables)
+4. `20261031000001_invoices_and_payments.sql` (saves invoices in one step, locks sent invoices, keeps payment slips in the client's own folder)
 
 All of them are safe to run again.
 

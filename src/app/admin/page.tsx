@@ -9,7 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
-import { formatMoney } from "@/lib/domain";
+import { colomboToday, formatMoney } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -39,6 +39,7 @@ async function AdminOverviewContent() {
   let pendingPaymentsCount = 0;
   let unpaidLkr = 0;
   let unpaidUsd = 0;
+  let overdueCount = 0;
 
   if (isAdmin) {
     const [paymentsRes, invoicesRes] = await Promise.all([
@@ -48,12 +49,14 @@ async function AdminOverviewContent() {
         .eq("status", "pending"),
       supabase
         .from("invoices")
-        .select("currency, total, amount_paid, status")
+        .select("currency, total, amount_paid, status, due_date")
         .in("status", ["sent", "partially_paid"]),
     ]);
 
     pendingPaymentsCount = paymentsRes.count ?? 0;
+    const today = colomboToday();
     for (const inv of invoicesRes.data ?? []) {
+      if ((inv.due_date as string) < today) overdueCount += 1;
       const balance = Math.max(0, Number(inv.total) - Number(inv.amount_paid));
       if (inv.currency === "USD") {
         unpaidUsd += balance;
@@ -129,7 +132,10 @@ async function AdminOverviewContent() {
         </div>
 
         {isAdmin && (
-          <div className="rounded-2xl border border-border bg-card p-5">
+          <Link
+            href="/admin/payments"
+            className="rounded-2xl border border-border bg-card p-5 transition-colors hover:border-foreground/30"
+          >
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-xs font-medium uppercase tracking-wider">
                 Slips to Review
@@ -140,8 +146,9 @@ async function AdminOverviewContent() {
             <p className="mt-1 text-xs text-muted-foreground">
               Unpaid: {formatMoney(unpaidLkr, "LKR")} ·{" "}
               {formatMoney(unpaidUsd, "USD")}
+              {overdueCount > 0 && ` · ${overdueCount} overdue`}
             </p>
-          </div>
+          </Link>
         )}
       </div>
 

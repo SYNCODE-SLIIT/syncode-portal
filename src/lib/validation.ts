@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { calculateInvoiceTotals, colomboToday } from "./domain.ts";
 import { PROJECT_STATUSES, PROJECT_TYPES } from "./labels.ts";
 
 /** Trimmed text; an empty field becomes null. */
@@ -160,6 +161,115 @@ export const declineReasonSchema = z
   .trim()
   .max(1000, "Keep the reason under 1,000 characters.")
   .transform((value) => (value === "" ? null : value));
+
+/** A number typed into a text field (commas allowed), rounded to 2 decimals. Empty counts as `empty`. */
+const numberText = (label: string, { min, max, empty }: { min: number; max: number; empty: number | null }) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? empty : Number(value.replace(/,/g, ""))))
+    .pipe(
+      z
+        .number(`${label} must be a number.`)
+        .min(min, min > 0 ? `${label} must be more than 0.` : `${label} can't be negative.`)
+        .max(max, `${label} is too large.`)
+        .transform((value) => Math.round(value * 100) / 100)
+    );
+
+const MAX_MONEY = 9_999_999_999;
+
+const requiredDate = (message: string) => z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, message);
+
+export const invoiceItemSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .min(1, "Every line needs a description.")
+    .max(300, "Line descriptions can be up to 300 characters."),
+  quantity: numberText("Quantity", { min: 0.01, max: 100_000, empty: null }),
+  unit_price: numberText("Price", { min: 0, max: MAX_MONEY, empty: null }),
+});
+
+export const invoiceSchema = z
+  .object({
+    client_id: z.uuid("Choose a client."),
+    project_id: z
+      .string()
+      .trim()
+      .transform((value) => (value === "" ? null : value))
+      .pipe(z.uuid("Choose a valid project.").nullable()),
+    currency: z.enum(["LKR", "USD"]),
+    issue_date: requiredDate("Enter the invoice date."),
+    due_date: requiredDate("Enter the due date."),
+    discount: numberText("Discount", { min: 0, max: MAX_MONEY, empty: 0 }),
+    tax: numberText("Tax", { min: 0, max: MAX_MONEY, empty: 0 }),
+    notes: optionalText(2000, "Notes"),
+    items: z
+      .string()
+      .transform((value, ctx) => {
+        try {
+          return JSON.parse(value) as unknown;
+        } catch {
+          ctx.addIssue({ code: "custom", message: "Add at least one line item." });
+          return z.NEVER;
+        }
+      })
+      .pipe(z.array(invoiceItemSchema).min(1, "Add at least one line item.").max(50, "An invoice can have up to 50 lines.")),
+  })
+  .refine((i) => i.due_date >= i.issue_date, { message: "The due date can't be before the invoice date.", path: ["due_date"] })
+  .refine((i) => calculateInvoiceTotals(i.items, 0, 0).subtotal >= i.discount, {
+    message: "The discount can't be more than the subtotal.",
+    path: ["discount"],
+  })
+  .refine((i) => calculateInvoiceTotals(i.items, i.discount, i.tax).total > 0, {
+    message: "The invoice total must be more than 0.",
+    path: ["items"],
+  });
+
+/** A payment the client reports, or one an admin records. */
+export const paymentSchema = z.object({
+  amount: numberText("Amount", { min: 0.01, max: MAX_MONEY, empty: null }),
+  paid_on: requiredDate("Enter the date you paid.").refine((d) => d <= colomboToday(), "The payment date can't be in the future."),
+  reference: optionalText(120, "Reference"),
+});
+
+export const recordPaymentSchema = paymentSchema.extend({
+  method: z.enum(["bank_transfer", "cash", "other"]),
+});
+
+export const requiredReasonSchema = z
+  .string()
+  .trim()
+  .min(3, "Please give a short reason.")
+  .max(500, "Keep the reason under 500 characters.");
+
+export const settingsSchema = z.object({
+  business_name: z.string().trim().min(2, "Enter the business name.").max(120, "Business name is too long."),
+  business_address: z.string().trim().min(5, "Enter the business address.").max(300, "Address is too long."),
+  business_phone: optionalText(40, "Phone"),
+  business_email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address.")),
+  bank_name: optionalText(120, "Bank name"),
+  bank_branch: optionalText(120, "Branch"),
+  bank_account_name: optionalText(120, "Account name"),
+  bank_account_number: optionalText(40, "Account number"),
+  bank_swift_code: optionalText(20, "SWIFT code"),
+  invoice_prefix: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{2,10}$/, "The invoice prefix must be 2–10 letters or numbers, e.g. SYN."),
+  payment_terms_days: z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? 14 : Number(value)))
+    .pipe(
+      z
+        .number("Payment terms must be a number of days.")
+        .int("Payment terms must be a whole number of days.")
+        .min(0, "Payment terms can't be negative.")
+        .max(365, "Payment terms can be up to 365 days.")
+    ),
+});
 
 export type ClientInput = z.infer<typeof clientSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;

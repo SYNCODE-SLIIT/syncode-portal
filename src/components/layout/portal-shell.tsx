@@ -34,17 +34,17 @@ const STAFF_NAV: NavItem[] = [
   { href: "/admin/clients", label: "Clients", icon: Building2 },
   { href: "/admin/projects", label: "Projects", icon: FolderKanban },
   { href: "/admin/requests", label: "Requests", icon: MessageSquarePlus },
-  { href: "/admin/invoices", label: "Invoices", icon: FileText, adminOnly: true, soon: true },
-  { href: "/admin/payments", label: "Payments", icon: CreditCard, adminOnly: true, soon: true },
+  { href: "/admin/invoices", label: "Invoices", icon: FileText, adminOnly: true },
+  { href: "/admin/payments", label: "Payments", icon: CreditCard, adminOnly: true },
   { href: "/admin/team", label: "Team", icon: Users, adminOnly: true },
   { href: "/admin/activity", label: "Activity", icon: Activity, adminOnly: true, soon: true },
-  { href: "/admin/settings", label: "Settings", icon: Settings, adminOnly: true, soon: true },
+  { href: "/admin/settings", label: "Settings", icon: Settings, adminOnly: true },
 ];
 
 const CLIENT_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/requests", label: "Requests", icon: MessageSquarePlus },
-  { href: "/invoices", label: "Invoices", icon: FileText, soon: true },
+  { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/account", label: "Account", icon: UserCircle },
 ];
 

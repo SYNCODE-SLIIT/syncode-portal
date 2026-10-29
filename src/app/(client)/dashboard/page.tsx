@@ -1,15 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, FolderKanban } from "lucide-react";
+import { ArrowRight, FileText, FolderKanban } from "lucide-react";
 import { LinkifiedText } from "@/components/linkified-text";
 import { ProgressBar, StatusBadge } from "@/components/ui/form-fields";
 import { requireClient } from "@/lib/auth";
 import { getProjectProgress } from "@/lib/data/projects";
-import { formatPortalDate, formatPortalDateTime } from "@/lib/domain";
-import { PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLES, PROJECT_TYPE_LABELS } from "@/lib/labels";
+import { colomboToday, formatMoney, formatPortalDate, formatPortalDateTime, getInvoiceDisplayStatus, invoiceBalance } from "@/lib/domain";
+import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES, PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLES, PROJECT_TYPE_LABELS } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import type { Client, Milestone, Project } from "@/lib/types/database";
+import type { Client, Invoice, Milestone, Project } from "@/lib/types/database";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -20,7 +20,7 @@ async function ClientDashboardContent() {
   const supabase = await createClient();
 
   // Row-level security limits every query to this client's own data
-  const [{ data: client }, { data: projectRows }, { data: updateRows }] = await Promise.all([
+  const [{ data: client }, { data: projectRows }, { data: updateRows }, { data: unpaidRows }] = await Promise.all([
     session.profile.client_id
       ? supabase.from("clients").select("*").eq("id", session.profile.client_id).maybeSingle<Client>()
       : Promise.resolve({ data: null }),
@@ -31,7 +31,15 @@ async function ClientDashboardContent() {
       .eq("visibility", "client")
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("invoices")
+      .select("*")
+      .in("status", ["sent", "partially_paid"])
+      .order("due_date", { ascending: true })
+      .returns<Invoice[]>(),
   ]);
+  const unpaidInvoices = unpaidRows ?? [];
+  const today = colomboToday();
 
   // Current work first; completed and cancelled projects after
   const order = { in_progress: 0, planning: 1, on_hold: 2, completed: 3, cancelled: 4 } as const;
@@ -61,6 +69,40 @@ async function ClientDashboardContent() {
         <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Hello, {firstName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">Here&apos;s where your projects with Team SYNCODE stand.</p>
       </div>
+
+      {unpaidInvoices.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground">Invoices to pay</h2>
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+            {unpaidInvoices.map((inv) => {
+              const display = getInvoiceDisplayStatus(inv.status, inv.due_date, today);
+              return (
+                <li key={inv.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="font-medium tabular-nums">
+                        {formatMoney(invoiceBalance(inv.total, inv.amount_paid), inv.currency)}
+                        <span className="font-normal text-muted-foreground"> · {inv.number}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">Due {formatPortalDate(inv.due_date)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge className={INVOICE_STATUS_STYLES[display]}>{INVOICE_STATUS_LABELS[display]}</StatusBadge>
+                    <Link
+                      href={`/invoices/${inv.id}#pay`}
+                      className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/80"
+                    >
+                      Pay
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {projects.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">

@@ -1,4 +1,13 @@
-import type { ClientStatus, ProjectStatus, ProjectType, RequestPriority, RequestStatus } from "./types/database.ts";
+import type {
+  ClientStatus,
+  DisplayInvoiceStatus,
+  PaymentMethod,
+  PaymentStatus,
+  ProjectStatus,
+  ProjectType,
+  RequestPriority,
+  RequestStatus,
+} from "./types/database.ts";
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   website: "Website",
@@ -63,3 +72,39 @@ export const REQUEST_PRIORITY_LABELS: Record<RequestPriority, string> = {
 };
 
 export const OPEN_REQUEST_STATUSES: RequestStatus[] = ["submitted", "under_review", "quoted", "approved", "in_progress"];
+
+export const INVOICE_STATUS_LABELS: Record<DisplayInvoiceStatus, string> = {
+  draft: "Draft",
+  sent: "Unpaid",
+  partially_paid: "Partly paid",
+  paid: "Paid",
+  overdue: "Overdue",
+  void: "Void",
+};
+
+export const INVOICE_STATUS_STYLES: Record<DisplayInvoiceStatus, string> = {
+  draft: "border-border bg-transparent text-muted-foreground",
+  sent: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+  partially_paid: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  paid: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  overdue: "border-destructive/30 bg-destructive/10 text-destructive",
+  void: "border-border bg-transparent text-muted-foreground line-through",
+};
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  pending: "Waiting for review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+export const PAYMENT_STATUS_STYLES: Record<PaymentStatus, string> = {
+  pending: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  rejected: "border-destructive/30 bg-destructive/10 text-destructive",
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  bank_transfer: "Bank transfer",
+  cash: "Cash",
+  other: "Other",
+};

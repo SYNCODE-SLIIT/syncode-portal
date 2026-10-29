@@ -5,6 +5,15 @@ import { isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "./env
 // Refreshes the signed-in user's session cookie on every request.
 // Route protection is added on top of this in the login step.
 export async function updateSession(request: NextRequest) {
+  // Supabase falls back to the Site URL (the home page) when a redirect URL isn't
+  // on its allow-list. Forward sign-in codes from there to the callback handler.
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname === "/" && (searchParams.has("code") || searchParams.has("token_hash"))) {
+    const callbackUrl = request.nextUrl.clone();
+    callbackUrl.pathname = "/auth/callback";
+    return NextResponse.redirect(callbackUrl);
+  }
+
   let response = NextResponse.next({ request });
   if (!isSupabaseConfigured) return response;
 
@@ -28,7 +37,6 @@ export async function updateSession(request: NextRequest) {
 
   // Optimistic check: send signed-out visitors straight to /login. Pages still verify
   // the user and their role on the server; this only avoids loading a page first.
-  const { pathname } = request.nextUrl;
   const isProtected =
     pathname === "/" || PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   if (!data?.claims && isProtected) {

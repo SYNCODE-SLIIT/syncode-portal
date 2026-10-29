@@ -2,13 +2,19 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check, CircleDot, ExternalLink, Globe, TestTube2 } from "lucide-react";
+import { ArrowLeft, Check, CircleDot, ExternalLink, Globe, MessageSquarePlus, TestTube2 } from "lucide-react";
 import { LinkifiedText } from "@/components/linkified-text";
-import { PageHeader, ProgressBar, StatusBadge } from "@/components/ui/form-fields";
+import { PageHeader, ProgressBar, StatusBadge, secondaryButtonClass } from "@/components/ui/form-fields";
 import { requireClient } from "@/lib/auth";
 import { getProjectProgress } from "@/lib/data/projects";
 import { formatPortalDate, formatPortalDateTime } from "@/lib/domain";
-import { PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLES, PROJECT_TYPE_LABELS } from "@/lib/labels";
+import {
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_STYLES,
+  PROJECT_TYPE_LABELS,
+  REQUEST_STATUS_LABELS,
+  REQUEST_STATUS_STYLES,
+} from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import type { Milestone, Project } from "@/lib/types/database";
 import { isUuid } from "@/lib/validation";
@@ -24,7 +30,7 @@ async function ClientProjectDetail({ params }: { params: Promise<{ id: string }>
 
   // Row-level security only returns this client's own project, milestones and client-visible updates
   const supabase = await createClient();
-  const [{ data: project }, { data: milestones }, { data: updateRows }, { data: memberRows }] = await Promise.all([
+  const [{ data: project }, { data: milestones }, { data: updateRows }, { data: memberRows }, { data: requests }] = await Promise.all([
     supabase.from("projects").select("*").eq("id", id).maybeSingle<Project>(),
     supabase
       .from("milestones")
@@ -41,6 +47,12 @@ async function ClientProjectDetail({ params }: { params: Promise<{ id: string }>
       .order("created_at", { ascending: false })
       .limit(30),
     supabase.from("project_members").select("profiles(id, full_name)").eq("project_id", id),
+    supabase
+      .from("feature_requests")
+      .select("id, title, status, updated_at")
+      .eq("project_id", id)
+      .order("updated_at", { ascending: false })
+      .limit(10),
   ]);
   if (!project) notFound();
 
@@ -62,6 +74,14 @@ async function ClientProjectDetail({ params }: { params: Promise<{ id: string }>
         title={project.name}
         description={
           <StatusBadge className={PROJECT_STATUS_STYLES[project.status]}>{PROJECT_STATUS_LABELS[project.status]}</StatusBadge>
+        }
+        actions={
+          project.status !== "cancelled" ? (
+            <Link href={`/requests/new?project=${project.id}`} className={secondaryButtonClass}>
+              <MessageSquarePlus className="size-4" />
+              Request a change
+            </Link>
+          ) : undefined
         }
       />
 
@@ -151,6 +171,27 @@ async function ClientProjectDetail({ params }: { params: Promise<{ id: string }>
             <section className="space-y-2 rounded-2xl border border-border bg-card p-6">
               <h2 className="text-base font-semibold">About this project</h2>
               <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{project.description}</p>
+            </section>
+          )}
+
+          {(requests ?? []).length > 0 && (
+            <section className="space-y-3 rounded-2xl border border-border bg-card p-6">
+              <h2 className="text-base font-semibold">Your requests</h2>
+              <ul className="space-y-2">
+                {(requests ?? []).map((r) => (
+                  <li key={r.id as string}>
+                    <Link
+                      href={`/requests/${r.id}`}
+                      className="-mx-2 flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-sm transition-colors hover:bg-secondary/50"
+                    >
+                      <span className="min-w-0 truncate">{r.title as string}</span>
+                      <StatusBadge className={REQUEST_STATUS_STYLES[r.status as keyof typeof REQUEST_STATUS_STYLES]}>
+                        {REQUEST_STATUS_LABELS[r.status as keyof typeof REQUEST_STATUS_LABELS]}
+                      </StatusBadge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 

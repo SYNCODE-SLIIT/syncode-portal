@@ -8,7 +8,13 @@ import { requireStaff } from "@/lib/auth";
 import { getProjectProgress } from "@/lib/data/projects";
 import { getUserAccounts } from "@/lib/data/users";
 import { formatPortalDate } from "@/lib/domain";
-import { PROJECT_STATUS_LABELS, PROJECT_STATUS_STYLES, PROJECT_TYPE_LABELS } from "@/lib/labels";
+import {
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_STYLES,
+  PROJECT_TYPE_LABELS,
+  REQUEST_STATUS_LABELS,
+  REQUEST_STATUS_STYLES,
+} from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import type { Milestone, Profile, Project } from "@/lib/types/database";
 import { isUuid } from "@/lib/validation";
@@ -25,7 +31,8 @@ async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: project }, { data: internal }, { data: memberRows }, { data: milestones }, { data: updateRows }] = await Promise.all([
+  const [{ data: project }, { data: internal }, { data: memberRows }, { data: milestones }, { data: updateRows }, { data: requests }] =
+    await Promise.all([
     supabase
       .from("projects")
       .select("*, clients(id, name)")
@@ -46,6 +53,12 @@ async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
       .eq("project_id", id)
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase
+      .from("feature_requests")
+      .select("id, title, status, updated_at")
+      .eq("project_id", id)
+      .order("updated_at", { ascending: false })
+      .limit(20),
   ]);
   if (!project) notFound();
 
@@ -137,6 +150,29 @@ async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
             <ProjectLink icon={Globe} label="Live site" href={project.live_url} />
             <ProjectLink icon={TestTube2} label="Staging" href={project.staging_url} />
             <ProjectLink icon={GitBranch} label="Repository (internal)" href={internal?.repo_url ?? null} />
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-border bg-card p-6">
+            <h2 className="text-base font-semibold">Requests ({(requests ?? []).length})</h2>
+            {(requests ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No requests from the client yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {(requests ?? []).map((r) => (
+                  <li key={r.id as string}>
+                    <Link
+                      href={`/admin/requests/${r.id}`}
+                      className="-mx-2 flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-sm transition-colors hover:bg-secondary/50"
+                    >
+                      <span className="min-w-0 truncate">{r.title as string}</span>
+                      <StatusBadge className={REQUEST_STATUS_STYLES[r.status as keyof typeof REQUEST_STATUS_STYLES]}>
+                        {REQUEST_STATUS_LABELS[r.status as keyof typeof REQUEST_STATUS_LABELS]}
+                      </StatusBadge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <section className="space-y-3 rounded-2xl border border-border bg-card p-6">

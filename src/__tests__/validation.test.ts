@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { clientSchema, isUuid, milestoneSchema, projectSchema, projectUpdateSchema } from "../lib/validation.ts";
+import {
+  clientSchema,
+  featureRequestSchema,
+  isUuid,
+  milestoneSchema,
+  projectSchema,
+  projectUpdateSchema,
+  quoteSchema,
+} from "../lib/validation.ts";
 
 const CLIENT_ID = "3f2b8c1e-5d4a-4b6f-9a1c-2e7d8f9a0b1c";
 
@@ -113,5 +121,29 @@ describe("Milestone and update validation", () => {
     assert.equal(projectUpdateSchema.safeParse({ body: "  ", visibility: "client" }).success, false);
     assert.equal(projectUpdateSchema.safeParse({ body: "Design is ready", visibility: "public" }).success, false);
     assert.equal(projectUpdateSchema.parse({ body: " Design is ready ", visibility: "internal" }).body, "Design is ready");
+  });
+});
+
+describe("Request and quote validation", () => {
+  it("requires a project, a title and some detail", () => {
+    const ok = { project_id: CLIENT_ID, title: "Add a gallery page", description: "A page with our hotel photos.", priority: "normal" };
+    assert.equal(featureRequestSchema.safeParse(ok).success, true);
+    assert.equal(featureRequestSchema.safeParse({ ...ok, project_id: "" }).success, false);
+    assert.equal(featureRequestSchema.safeParse({ ...ok, description: "short" }).success, false);
+    assert.equal(featureRequestSchema.safeParse({ ...ok, priority: "urgent" }).success, false);
+  });
+
+  it("needs a price or hours, and reads amounts with thousands separators", () => {
+    assert.equal(quoteSchema.safeParse({ estimate_hours: "", quote_amount: "", quote_currency: "LKR" }).success, false);
+    const quote = quoteSchema.parse({ estimate_hours: "", quote_amount: "25,000.505", quote_currency: "LKR" });
+    assert.equal(quote.quote_amount, 25000.51);
+    assert.equal(quote.estimate_hours, null);
+    assert.equal(quoteSchema.parse({ estimate_hours: "6", quote_amount: "", quote_currency: "USD" }).estimate_hours, 6);
+  });
+
+  it("rejects negative or non-numeric quotes", () => {
+    assert.equal(quoteSchema.safeParse({ estimate_hours: "-1", quote_amount: "", quote_currency: "LKR" }).success, false);
+    assert.equal(quoteSchema.safeParse({ estimate_hours: "", quote_amount: "abc", quote_currency: "LKR" }).success, false);
+    assert.equal(quoteSchema.safeParse({ estimate_hours: "", quote_amount: "100", quote_currency: "EUR" }).success, false);
   });
 });

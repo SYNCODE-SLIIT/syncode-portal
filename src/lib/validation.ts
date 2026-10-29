@@ -115,6 +115,52 @@ export const projectUpdateSchema = z.object({
   visibility: z.enum(["client", "internal"]),
 });
 
+export const featureRequestSchema = z.object({
+  project_id: z.uuid("Choose the project this request is for."),
+  title: z.string().trim().min(3, "Give the request a short title.").max(120, "The title is too long."),
+  description: z
+    .string()
+    .trim()
+    .min(10, "Describe what you need in a sentence or two.")
+    .max(5000, "The description can be up to 5,000 characters."),
+  priority: z.enum(["low", "normal", "high"]),
+});
+
+const optionalAmount = (label: string, max: number) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? null : Number(value.replace(/,/g, ""))))
+    .pipe(
+      z
+        .number(`${label} must be a number.`)
+        .min(0, `${label} can't be negative.`)
+        .max(max, `${label} is too large.`)
+        .transform((value) => Math.round(value * 100) / 100)
+        .nullable()
+    );
+
+export const quoteSchema = z
+  .object({
+    estimate_hours: optionalAmount("Estimated hours", 100000),
+    quote_amount: optionalAmount("Quote amount", 9_999_999_999),
+    quote_currency: z.enum(["LKR", "USD"]),
+  })
+  .refine((q) => q.estimate_hours !== null || q.quote_amount !== null, {
+    message: "Enter the estimated hours, the price, or both.",
+    path: ["quote_amount"],
+  });
+
+export const commentSchema = z.object({
+  body: z.string().trim().min(1, "Write a comment first.").max(3000, "Comments can be up to 3,000 characters."),
+});
+
+export const declineReasonSchema = z
+  .string()
+  .trim()
+  .max(1000, "Keep the reason under 1,000 characters.")
+  .transform((value) => (value === "" ? null : value));
+
 export type ClientInput = z.infer<typeof clientSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;
 

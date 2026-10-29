@@ -11,7 +11,7 @@ Supabase dashboard → **SQL Editor** → New query. Paste and run each file in 
 2. `20261029000001_grants_and_security_fixes.sql`
 3. `20261030000001_staff_only_fields.sql` (moves internal notes and repository links to staff-only tables)
 
-Both are safe to run again.
+All of them are safe to run again.
 
 ## 2. Sign-in settings
 

@@ -47,6 +47,12 @@ export async function sendMagicLinkAction(formData: FormData): Promise<ActionRes
   });
 
   if (error) {
+    if (error.status === 429 || error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit") {
+      return {
+        ok: false,
+        error: "Too many login emails were requested. Please wait a few minutes and try again, or sign in with your password.",
+      };
+    }
     // Do not leak raw database/auth errors to clients (Master Plan Rule 5)
     return {
       ok: false,

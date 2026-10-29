@@ -25,24 +25,26 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  /** Page not built yet: shown greyed out with a "Soon" label instead of a dead link */
+  soon?: boolean;
 }
 
 const STAFF_NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/clients", label: "Clients", icon: Building2 },
-  { href: "/admin/projects", label: "Projects", icon: FolderKanban },
-  { href: "/admin/requests", label: "Requests", icon: MessageSquarePlus },
-  { href: "/admin/invoices", label: "Invoices", icon: FileText, adminOnly: true },
-  { href: "/admin/payments", label: "Payments", icon: CreditCard, adminOnly: true },
+  { href: "/admin/clients", label: "Clients", icon: Building2, soon: true },
+  { href: "/admin/projects", label: "Projects", icon: FolderKanban, soon: true },
+  { href: "/admin/requests", label: "Requests", icon: MessageSquarePlus, soon: true },
+  { href: "/admin/invoices", label: "Invoices", icon: FileText, adminOnly: true, soon: true },
+  { href: "/admin/payments", label: "Payments", icon: CreditCard, adminOnly: true, soon: true },
   { href: "/admin/team", label: "Team", icon: Users, adminOnly: true },
-  { href: "/admin/activity", label: "Activity", icon: Activity, adminOnly: true },
-  { href: "/admin/settings", label: "Settings", icon: Settings, adminOnly: true },
+  { href: "/admin/activity", label: "Activity", icon: Activity, adminOnly: true, soon: true },
+  { href: "/admin/settings", label: "Settings", icon: Settings, adminOnly: true, soon: true },
 ];
 
 const CLIENT_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/requests", label: "Requests", icon: MessageSquarePlus },
-  { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/requests", label: "Requests", icon: MessageSquarePlus, soon: true },
+  { href: "/invoices", label: "Invoices", icon: FileText, soon: true },
   { href: "/account", label: "Account", icon: UserCircle },
 ];
 
@@ -100,6 +102,22 @@ export function PortalShell({
           {items.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
+            if (item.soon) {
+              return (
+                <div
+                  key={item.href}
+                  aria-disabled="true"
+                  title="Coming in a later build step"
+                  className="flex cursor-default items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-muted-foreground/50"
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span>{item.label}</span>
+                  <span className="ml-auto rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                    Soon
+                  </span>
+                </div>
+              );
+            }
             return (
               <Link
                 key={item.href}
@@ -179,7 +197,7 @@ export function PortalShell({
         aria-label="Mobile navigation"
         className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-2 py-2 backdrop-blur md:hidden"
       >
-        {items.slice(0, 5).map((item) => {
+        {items.filter((item) => !item.soon).slice(0, 5).map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
           return (
